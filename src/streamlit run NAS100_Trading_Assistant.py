@@ -137,7 +137,7 @@ def main():
             dt_col = next((c for c in df.columns if 'date' in c.lower()), None)
             
             if dt_col:
-                df = df.set_index(pd.to_datetime(df[dt_col])[['Open', 'High', 'Low', 'Close', 'Volume']]
+                df = df.set_index(pd.to_datetime(df[dt_col]))[['Open', 'High', 'Low', 'Close', 'Volume']]
                 st.session_state.df = df.ffill()
             else:
                 st.error("DateTime column not found in uploaded file")
