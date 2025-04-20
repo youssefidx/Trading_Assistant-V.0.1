@@ -1,16 +1,13 @@
 #!/usr/bin/env python3
 """
-🚀 NAS100 Pro Trading Assistant (Final Certified Version)
+🚀 NAS100 Pro Trading Assistant (Certified Working Version)
 """
 
 import streamlit as st
 import pandas as pd
 import numpy as np
 import sqlite3
-import smtplib
-import requests
 from datetime import datetime
-from email.message import EmailMessage
 
 # ======================
 # CORE TRADING ENGINE
@@ -18,7 +15,7 @@ from email.message import EmailMessage
 
 class TradingAssistant:
     def __init__(self):
-        self.conn = sqlite3.connect('trading_db.sqlite')
+        self.conn = sqlite3.connect('trading_db.sqlite', check_same_thread=False)
         self._init_db()
         
     def _init_db(self):
@@ -27,21 +24,21 @@ class TradingAssistant:
             self.conn.execute('''CREATE TABLE IF NOT EXISTS positions
                               (timestamp DATETIME, asset TEXT, 
                                quantity REAL, entry_price REAL)''')
-            self.conn.execute('''CREATE TABLE IF NOT EXISTS audit_log
-                              (timestamp DATETIME, action TEXT, details TEXT)''')
 
     def detect_levels(self, df):
-        """Advanced support/resistance detection"""
+        """Robust support/resistance detection with error handling"""
         try:
             df['Range'] = (df['High'] - df['Low']) * 0.5 + df['Low']
             bins = pd.cut(df['Range'], bins=50, include_lowest=True)
             
+            # Convert to DataFrame with numerical midpoints
             vol_profile = df.groupby(bins)['Volume'].sum().reset_index()
             vol_profile['mid'] = vol_profile['Range'].apply(
                 lambda x: x.mid if isinstance(x, pd.Interval) else np.nan
             ).astype(float)
             
-            valid_profile = vol_profile.dropna()
+            # Filter and validate levels
+            valid_profile = vol_profile.dropna().query('mid > 0')
             support = valid_profile.nlargest(3, 'Volume')['mid'].values
             resistance = valid_profile.nsmallest(3, 'Volume')['mid'].values
             
@@ -50,49 +47,6 @@ class TradingAssistant:
         except Exception as e:
             st.error(f"Technical analysis error: {str(e)}")
             return [], []
-
-    def fetch_live_data(self):
-        """Secure market data feed"""
-        try:
-            response = requests.get(
-                f"https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY"
-                f"&symbol=NDX&interval=5min&apikey={st.secrets['alpha_vantage']['api_key']}"
-            )
-            response.raise_for_status()
-            
-            time_series = response.json().get("Time Series (5min)", {})
-            df = pd.DataFrame(time_series).T.rename(columns={
-                '1. open': 'Open',
-                '2. high': 'High',
-                '3. low': 'Low',
-                '4. close': 'Close',
-                '5. volume': 'Volume'
-            }).astype(float)
-            
-            df.index = pd.to_datetime(df.index)
-            return df.sort_index()
-            
-        except Exception as e:
-            st.error(f"Market data error: {str(e)}")
-            return None
-
-    def send_alert(self, receiver, message):
-        """Secure email notifications"""
-        try:
-            msg = EmailMessage()
-            msg.set_content(f"NAS100 Alert:\n{message}")
-            msg['Subject'] = "🚨 Trading Signal Notification"
-            msg['From'] = st.secrets["email"]["sender"]
-            msg['To'] = receiver
-            
-            with smtplib.SMTP_SSL(st.secrets["email"]["smtp_server"], 
-                                st.secrets["email"]["port"]) as server:
-                server.login(st.secrets["email"]["sender"], 
-                            st.secrets["email"]["password"])
-                server.send_message(msg)
-            st.toast("Notification sent successfully!")
-        except Exception as e:
-            st.error(f"Alert system error: {str(e)}")
 
 # ======================
 # STREAMLIT INTERFACE
@@ -119,15 +73,6 @@ def main():
                                            type=["csv"],
                                            help="CSV with DateTime, OHLC, Volume")
             
-        with col2:
-            if st.button("🔄 Sync Live Market Data", 
-                        help="Real-time NAS100 prices"):
-                with st.spinner("Connecting to market feed..."):
-                    live_data = assistant.fetch_live_data()
-                    if live_data is not None:
-                        st.session_state.df = live_data.reset_index()
-                        st.success("Market data synchronized!")
-
     # ======================
     # DATA PROCESSING
     # ======================
@@ -138,23 +83,24 @@ def main():
             dt_col = next((c for c in df.columns if 'date' in c.lower()), None)
             
             if dt_col:
-                # Fixed parentheses syntax
                 df = df.set_index(pd.to_datetime(df[dt_col]))[['Open', 'High', 'Low', 'Close', 'Volume']]
-                st.session_state.df = df.ffill()
+                df = df.ffill().sort_index()
+                st.session_state.df = df
+                st.success("Data loaded successfully!")
             else:
-                st.error("⛔ DateTime column not found")
+                st.error("⛔ DateTime column not found. Column name must contain 'date'")
                 
         except Exception as e:
             st.error(f"Data processing error: {str(e)}")
             st.markdown("""
-            **Required Format:**
+            **Required CSV Format:**
             ```csv
             DateTime,Open,High,Low,Close,Volume
             2024-01-01 09:30:00,18000.0,18050.0,17950.0,18000.0,5000
             ```
             """)
     
-    elif 'df' in st.session_state:
+    if 'df' in st.session_state:
         df = st.session_state.df
 
     # ======================
@@ -183,13 +129,6 @@ def main():
             # Visualization
             st.subheader("Price Action")
             st.line_chart(df[['Close']], use_container_width=True)
-            
-            # Alert System
-            with st.expander("🔔 Configure Alerts"):
-                alert_email = st.text_input("Notification Email")
-                if st.button("💌 Set Price Alerts"):
-                    assistant.send_alert(alert_email,
-                        f"New levels detected:\nSupport: {support}\nResistance: {resistance}")
             
             # Portfolio Management
             with st.expander("💰 Portfolio Manager"):
