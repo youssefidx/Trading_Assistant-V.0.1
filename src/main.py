@@ -140,13 +140,13 @@ def main():
     # ======================
     with st.expander("💡 Get Sample Data"):
         sample = pd.DataFrame({
-            'DateTime': pd.date_range('2024-01-01', periods=100, freq='15T'),
-            'Open': np.round(np.linspace(18000, 18200, 100), 
-            'High': np.round(np.linspace(18050, 18250, 100),
-            'Low': np.round(np.linspace(17950, 18150, 100),
-            'Close': np.round(np.linspace(18000, 18200, 100),
-            'Volume': np.random.randint(1000, 10000, 100)
-        })
+    'MarketTime': pd.date_range('2024-01-01', periods=100, freq='15T'),
+    'Open': np.round(np.linspace(18000, 18200, 100), 2),
+    'High': np.round(np.linspace(18050, 18250, 100), 2),  # Added closing )
+    'Low': np.round(np.linspace(17950, 18150, 100), 2),
+    'Close': np.round(np.linspace(18000, 18200, 100), 2),
+    'Volume': np.random.randint(1000, 10000, 100)
+})
         st.download_button(
             "⬇️ Download Sample CSV",
             sample.to_csv(index=False),
