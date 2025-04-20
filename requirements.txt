@@ -1,10 +1,2 @@
 # Install dependencies from the file
 pip install -r requirements.txt
-
-# Manually curate requirements.txt with only essential packages
-# Example:
-echo "streamlit>=1.32.0
-pandas>=2.1.0
-matplotlib>=3.8.0
-numpy>=1.26.0
-requests>=2.31.0" > requirements.txt
